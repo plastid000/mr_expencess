@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "1086032535936",
+    "firebase_url": "https://takay-khuda-metai-default-rtdb.firebaseio.com",
+    "project_id": "takay-khuda-metai",
+    "storage_bucket": "takay-khuda-metai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1086032535936:android:6370916774611d457f2165",
+        "android_client_info": {
+          "package_name": "com.mrtechbd.mrexpense"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1086032535936-6btertpjacm3l5oov6h0bqu0r813r7l8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyARsHwat19TFlxElIJD18Yg46OvbKVUOwA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1086032535936-6btertpjacm3l5oov6h0bqu0r813r7l8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
