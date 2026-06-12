@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # রিলিজ ক্রিয়েট করার পারমিশন
+      contents: write 
 
     steps:
       - name: Checkout Code
@@ -25,7 +25,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true # ক্যাশ অন থাকলে পরের বার বিল্ড ফাস্ট হবে
+          cache: true 
 
       - name: Install Dependencies
         run: flutter pub get
@@ -44,6 +44,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 🔥 Firebase Automation Start 🔥
+      
+      # ১. গুগলের অফিসিয়াল অ্যাকশন দিয়ে সিকিউর অথেনটিকেশন (নো ম্যানুয়াল ফাইল রাইটিং!)
+      - name: Authenticate to Google/Firebase
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.FIREBASE_CREDENTIALS }}'
+
+      # ২. নোড ও ফায়ারবেস সিএলআই সেটআপ
       - name: Setup Node.js & Firebase CLI
         uses: actions/setup-node@v3
         with:
@@ -52,29 +60,20 @@ jobs:
       - name: Install Firebase Tools
         run: npm install -g firebase-tools
 
+      # ৩. রিমোট কনফিগ আপডেট 
       - name: Update Firebase Remote Config
-        env:
-          # সিক্রেটকে সরাসরি Bash-এ না দিয়ে Environment Variable হিসেবে পাস করা হলো
-          FIREBASE_AUTH_KEY: ${{ secrets.FIREBASE_CREDENTIALS }}
         run: |
-          echo "Generating Firebase Auth JSON..."
-          # JSON ফরম্যাট ঠিক রাখার জন্য ডাবল-কোটেশন দিয়ে রাইট করা হলো
-          echo "$FIREBASE_AUTH_KEY" > firebase_auth.json
-          
-          # PWD এর বদলে গিটহাবের ডিফল্ট ওয়ার্কস্পেস পাথ ব্যবহার করা বেশি সিকিউর
-          export GOOGLE_APPLICATION_CREDENTIALS="${GITHUB_WORKSPACE}/firebase_auth.json"
-
           # ১. ট্যাগ থেকে 'v' রিমুভ করা (যেমন: v1.0.1 -> 1.0.1)
           CLEAN_VERSION=${GITHUB_REF_NAME#v}
           
           # ২. গিটহাব রিলিজের ডিরেক্ট ডাউনলোড লিংক জেনারেট করা
           APK_DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
 
+          # তোমার প্রজেক্ট আইডি
           PROJECT_ID="takay-khuda-metai"
 
           echo "Fetching current remote config..."
-          # --debug ফ্ল্যাগ দেওয়া হলো যাতে কোনো এরর আসলে রুট কজ বের করা যায়
-          firebase remoteconfig:get config.json --project $PROJECT_ID --non-interactive --debug
+          firebase remoteconfig:get config.json --project $PROJECT_ID --non-interactive
 
           echo "Modifying config with latest version & apk url..."
           jq --arg ver "$CLEAN_VERSION" \
@@ -84,6 +83,3 @@ jobs:
 
           echo "Publishing to Firebase..."
           firebase remoteconfig:publish updated_config.json --project $PROJECT_ID --force --non-interactive
-          
-          # সিকিউরিটির জন্য কাজ শেষে ফাইলগুলো ডিলিট
-          rm firebase_auth.json config.json updated_config.json
