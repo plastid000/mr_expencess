@@ -42,3 +42,37 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 🔥 Firebase Automation Start 🔥
+      - name: Setup Node.js & Firebase CLI
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install Firebase Tools
+        run: npm install -g firebase-tools
+
+      - name: Update Firebase Remote Config
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+        run: |
+          # ১. ট্যাগ থেকে 'v' রিমুভ করা (যেমন: v1.0.1 -> 1.0.1)
+          CLEAN_VERSION=${GITHUB_REF_NAME#v}
+          
+          # ২. গিটহাব রিলিজের ডিরেক্ট ডাউনলোড লিংক জেনারেট করা
+          APK_DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
+
+          # ⚠️ তোমার ফায়ারবেস প্রজেক্ট আইডিটা এখানে বসাও
+          PROJECT_ID="your-firebase-project-id"
+
+          echo "Fetching current remote config..."
+          firebase remoteconfig:get config.json --project $PROJECT_ID
+
+          echo "Modifying config with latest version & apk url..."
+          jq --arg ver "$CLEAN_VERSION" \
+             --arg url "$APK_DOWNLOAD_URL" \
+             '.parameters.latest_version.defaultValue.value = $ver | .parameters.apk_url.defaultValue.value = $url' \
+             config.json > updated_config.json
+
+          echo "Publishing to Firebase..."
+          firebase remoteconfig:publish updated_config.json --project $PROJECT_ID --force
