@@ -5,7 +5,9 @@ import '../../data/models/transaction_model.dart';
 import '../../data/models/wallet_model.dart';
 import '../../data/models/loan_model.dart';
 import '../../data/models/category_model.dart';
-import '../../data/models/income_source_model.dart'; // নতুন মডেল ইমপোর্ট
+import '../../data/models/income_source_model.dart';
+import '../../data/models/user_settings_model.dart';
+import '../../data/models/notification_model.dart';
 
 class DatabaseService extends GetxService {
   late Isar isar;
@@ -18,7 +20,9 @@ class DatabaseService extends GetxService {
       WalletModelSchema,
       LoanModelSchema,
       CategoryModelSchema,
-      IncomeSourceModelSchema, // ইনকাম সোর্স স্কিমা অ্যাড করা হলো
+      IncomeSourceModelSchema,
+      UserSettingsModelSchema, // 🔥 স্কিমা লিস্টে অ্যাড করা হলো
+      NotificationModelSchema,
     ], directory: dir.path);
 
     // Initial Default Wallets

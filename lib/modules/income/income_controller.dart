@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:isar/isar.dart';
+import 'package:mr_expense/modules/notifications/notification_controller.dart';
 import '../../core/services/database_service.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../data/models/transaction_model.dart';
@@ -82,20 +83,30 @@ class IncomeController extends GetxController {
           ? null
           : noteController
                 .text // নোট সেভ হচ্ছে
+      ..walletName = selectedWallet.value
       ..date = DateTime.now();
 
     await _repository.addTransaction(txn, selectedWallet.value);
 
     Get.find<DashboardController>().loadDashboardData();
 
-    Get.back();
+    if (Get.isRegistered<NotificationController>()) {
+      Get.find<NotificationController>().addNotification(
+        title: 'Income Added! 💰',
+        message:
+            '৳${amount.toStringAsFixed(0)} received from ${selectedSource.value}',
+        icon: '🤑',
+      );
+    }
+
+    Get.back(); //
     Get.snackbar(
-      'Cash In! 🤑',
-      '৳$amount added to ${selectedWallet.value}',
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: const Color(0xFF1E1E1E),
-      colorText: const Color(0xFF39FF14),
-      duration: const Duration(seconds: 2),
+      'Cash In! 🤑', //
+      '৳$amount added to ${selectedWallet.value}', //
+      snackPosition: SnackPosition.TOP, //
+      backgroundColor: const Color(0xFF1E1E1E), //
+      colorText: const Color(0xFF39FF14), //
+      duration: const Duration(seconds: 2), //
     );
   }
 

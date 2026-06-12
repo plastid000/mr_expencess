@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:mr_expense/modules/settings/settings_controller.dart';
 import 'income_controller.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/income_source_model.dart';
@@ -79,7 +80,7 @@ class IncomeView extends GetView<IncomeController> {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
-                    items: ['Cash', 'bKash', 'Nagad', 'Bank'].map((
+                    items: Get.find<SettingsController>().wallets.map((
                       String value,
                     ) {
                       return DropdownMenuItem<String>(

@@ -8,7 +8,7 @@ class TransactionModel {
   Id id = Isar.autoIncrement;
 
   @Index()
-  late String type; // income, expense, loan_given, etc.
+  late String type;
 
   late double amount;
   late String category;
@@ -18,7 +18,9 @@ class TransactionModel {
 
   String? note;
 
-  // IsarLink দিয়ে ওয়ালেটের সাথে ডিরেক্ট কানেকশন
+  // 🔥 নতুন ফিল্ড: সহজে রিড করার জন্য ওয়ালেটের নাম
+  String? walletName;
+
   final wallet = IsarLink<WalletModel>();
 
   DateTime createdAt = DateTime.now();

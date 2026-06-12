@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:isar/isar.dart';
+import 'package:mr_expense/modules/notifications/notification_controller.dart';
 import '../../core/services/database_service.dart';
 import '../../data/models/loan_model.dart';
 import '../dashboard/dashboard_controller.dart';
@@ -64,6 +65,22 @@ class LoanController extends GetxController {
 
     await loadLoans();
     Get.find<DashboardController>().loadDashboardData(); // ড্যাশবোর্ড সিঙ্ক
+
+    if (Get.isRegistered<NotificationController>()) {
+      String title = (type == 'I Will Get')
+          ? 'Loan Given! 🤝'
+          : 'Loan Taken! 💸';
+      String message = (type == 'I Will Get')
+          ? 'You lent ৳${amount.toStringAsFixed(0)} to $name.'
+          : 'You borrowed ৳${amount.toStringAsFixed(0)} from $name.';
+      String icon = (type == 'I Will Get') ? '🤝' : '💸';
+
+      Get.find<NotificationController>().addNotification(
+        title: title,
+        message: message,
+        icon: icon,
+      );
+    }
 
     Get.back(); // ডায়ালগ বা বটম শিট ক্লোজ করবে
     Get.snackbar(

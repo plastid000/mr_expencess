@@ -4,6 +4,7 @@ import '../modules/dashboard/dashboard_view.dart';
 import '../modules/dashboard/dashboard_controller.dart';
 import '../modules/expense/expense_view.dart';
 import '../modules/income/income_view.dart';
+import '../modules/notifications/notification_view.dart';
 
 class AppPages {
   static final routes = [
@@ -16,5 +17,10 @@ class AppPages {
     ),
     GetPage(name: Routes.ADD_EXPENSE, page: () => const ExpenseView()),
     GetPage(name: Routes.ADD_INCOME, page: () => const IncomeView()),
+    GetPage(
+      name: Routes.NOTIFICATIONS,
+      page: () => const NotificationView(),
+      transition: Transition.rightToLeft, // একটু প্রফেশনাল ট্রানজিশন
+    ),
   ];
 }

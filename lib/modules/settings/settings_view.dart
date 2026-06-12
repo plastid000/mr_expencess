@@ -9,7 +9,7 @@ class SettingsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Get.put(SettingsController());
+    final controller = Get.put(SettingsController());
     final securityService = Get.find<SecurityService>();
 
     return SafeArea(
@@ -27,6 +27,58 @@ class SettingsView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 30),
+
+            // 🔥 প্রোফাইল নেম আপডেট সেকশন
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(
+                Icons.person_outline,
+                color: AppColors.neonGreen,
+              ),
+              title: const Text(
+                'Change Profile Name',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              subtitle: Obx(
+                () => Text(
+                  'Current: ${controller.userName.value}',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right, color: Colors.white30),
+              onTap: () => _showEditNameDialog(context, controller),
+            ),
+
+            const Divider(color: Colors.white12, height: 20),
+
+            // 🔥 Manage Wallets সেকশন
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(
+                Icons.account_balance_wallet_outlined,
+                color: AppColors.neonGreen,
+              ),
+              title: const Text(
+                'Manage Wallets',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              subtitle: Obx(
+                () => Text(
+                  'Total: ${controller.wallets.length} wallets',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right, color: Colors.white30),
+              onTap: () => _showWalletDialog(context, controller),
+            ),
+
+            const Divider(color: Colors.white12, height: 20),
 
             // পিন সেটআপ অপশন
             Obx(
@@ -109,7 +161,7 @@ class SettingsView extends StatelessWidget {
                       backgroundColor: AppColors.expenseRed,
                     ),
                     onPressed: () {
-                      Get.find<SettingsController>().clearAllData();
+                      controller.clearAllData();
                       securityService.disableSecurity();
                       Get.back();
                     },
@@ -134,95 +186,142 @@ class SettingsView extends StatelessWidget {
     );
   }
 
-  // পিন ডায়ালগ (৪, ৬, ৮ ডিজিট সিলেকশন সহ)
-  void _showPinSetupDialog(BuildContext context, SecurityService security) {
-    final pinCtrl = TextEditingController();
-    var selectedLength = 4.obs;
-
+  // ওয়ালেট ম্যানেজমেন্ট ডায়ালগ
+  void _showWalletDialog(BuildContext context, SettingsController controller) {
+    final walletCtrl = TextEditingController();
     Get.defaultDialog(
       backgroundColor: AppColors.surface,
-      title: 'Set App PIN',
-      titleStyle: const TextStyle(color: AppColors.neonGreen),
-      content: Column(
-        children: [
-          const Text(
-            'Select PIN Length:',
-            style: TextStyle(color: Colors.white70),
-          ),
-          const SizedBox(height: 10),
-          Obx(
-            () => Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [4, 6, 8]
-                  .map(
-                    (len) => Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: ChoiceChip(
-                        label: Text('$len'),
-                        selected: selectedLength.value == len,
-                        onSelected: (selected) => selectedLength.value = len,
-                        selectedColor: AppColors.neonGreen,
-                        labelStyle: TextStyle(
-                          color: selectedLength.value == len
-                              ? Colors.black
-                              : Colors.white,
-                        ),
-                        backgroundColor: AppColors.background,
+      title: 'Your Wallets',
+      titleStyle: const TextStyle(
+        color: AppColors.neonGreen,
+        fontWeight: FontWeight.bold,
+      ),
+      content: SizedBox(
+        width: 300,
+        height: 300,
+        child: Column(
+          children: [
+            Expanded(
+              child: Obx(
+                () => ListView.builder(
+                  itemCount: controller.wallets.length,
+                  itemBuilder: (context, index) {
+                    return ListTile(
+                      title: Text(
+                        controller.wallets[index],
+                        style: const TextStyle(color: Colors.white),
                       ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-          const SizedBox(height: 15),
-          TextField(
-            controller: pinCtrl,
-            keyboardType: TextInputType.number,
-            obscureText: true,
-            style: const TextStyle(color: Colors.white, fontSize: 20),
-            textAlign: TextAlign.center,
-            decoration: const InputDecoration(
-              hintText: 'Enter PIN',
-              hintStyle: TextStyle(color: Colors.white24),
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.white24),
-              ),
-              focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: AppColors.neonGreen),
+                      trailing: IconButton(
+                        icon: const Icon(
+                          Icons.remove_circle_outline,
+                          color: AppColors.expenseRed,
+                        ),
+                        onPressed: () =>
+                            controller.removeWallet(controller.wallets[index]),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        ],
+            TextField(
+              controller: walletCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'New Wallet Name',
+                hintStyle: TextStyle(color: Colors.white30),
+              ),
+            ),
+          ],
+        ),
       ),
       confirm: ElevatedButton(
         style: ElevatedButton.styleFrom(backgroundColor: AppColors.neonGreen),
         onPressed: () {
-          if (pinCtrl.text.length != selectedLength.value) {
-            Get.snackbar(
-              'Error',
-              '${selectedLength.value} ডিজিটের পিন দাও!',
-              backgroundColor: Colors.redAccent,
-              colorText: Colors.white,
-            );
-            return;
-          }
-          security.savePin(pinCtrl.text, selectedLength.value);
+          controller.addWallet(walletCtrl.text.trim());
+          walletCtrl.clear();
+        },
+        child: const Text('Add', style: TextStyle(color: Colors.black)),
+      ),
+    );
+  }
+
+  void _showEditNameDialog(
+    BuildContext context,
+    SettingsController controller,
+  ) {
+    final nameInputCtrl = TextEditingController(
+      text: controller.userName.value,
+    );
+    Get.defaultDialog(
+      backgroundColor: AppColors.surface,
+      title: 'Update Name',
+      titleStyle: const TextStyle(
+        color: AppColors.neonGreen,
+        fontWeight: FontWeight.bold,
+      ),
+      content: TextField(
+        controller: nameInputCtrl,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          hintText: 'Enter new name',
+          hintStyle: TextStyle(color: Colors.white30),
+        ),
+      ),
+      confirm: ElevatedButton(
+        style: ElevatedButton.styleFrom(backgroundColor: AppColors.neonGreen),
+        onPressed: () async {
+          await controller.updateName(nameInputCtrl.text.trim());
           Get.back();
-          Get.snackbar(
-            'Success',
-            'PIN Lock সাকসেসফুলি সেট হয়েছে!',
-            backgroundColor: AppColors.surface,
-            colorText: AppColors.neonGreen,
-          );
         },
         child: const Text(
           'Save',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
-      cancel: TextButton(
-        onPressed: () => Get.back(),
-        child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+    );
+  }
+
+  void _showPinSetupDialog(BuildContext context, SecurityService security) {
+    final pinCtrl = TextEditingController();
+    var selectedLength = 4.obs;
+    Get.defaultDialog(
+      backgroundColor: AppColors.surface,
+      title: 'Set App PIN',
+      titleStyle: const TextStyle(color: AppColors.neonGreen),
+      content: Column(
+        children: [
+          Obx(
+            () => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [4, 6, 8]
+                  .map(
+                    (len) => ChoiceChip(
+                      label: Text('$len'),
+                      selected: selectedLength.value == len,
+                      onSelected: (s) => selectedLength.value = len,
+                      selectedColor: AppColors.neonGreen,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          TextField(
+            controller: pinCtrl,
+            keyboardType: TextInputType.number,
+            obscureText: true,
+            style: const TextStyle(color: Colors.white),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+      confirm: ElevatedButton(
+        style: ElevatedButton.styleFrom(backgroundColor: AppColors.neonGreen),
+        onPressed: () {
+          security.savePin(pinCtrl.text, selectedLength.value);
+          Get.back();
+        },
+        child: const Text('Save', style: TextStyle(color: Colors.black)),
       ),
     );
   }

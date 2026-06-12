@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:mr_expense/modules/notifications/notification_controller.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -15,7 +16,6 @@ class UpdateService extends GetxService {
   var isDownloading = false.obs;
 
   Future<UpdateService> init() async {
-    // UI বিল্ড হওয়ার জন্য সামান্য ডিলে দিয়ে চেক করা শুরু হচ্ছে
     Future.delayed(const Duration(seconds: 2), () {
       _checkForUpdate();
     });
@@ -33,91 +33,97 @@ class UpdateService extends GetxService {
       await _remoteConfig.fetchAndActivate();
 
       String remoteVersion = _remoteConfig.getString('latest_version');
-      String apkUrl = _remoteConfig.getString('apk_url').isNotEmpty
-          ? _remoteConfig.getString('apk_url')
-          : 'https://google.com';
+      String apkUrl = _remoteConfig.getString('apk_url');
       bool forceUpdate = _remoteConfig.getBool('force_update');
-
-      debugPrint('Firebase Remote Version: $remoteVersion');
-      debugPrint('Firebase APK URL: $apkUrl');
-
       PackageInfo packageInfo = await PackageInfo.fromPlatform();
-      debugPrint('Current App Version: ${packageInfo.version}');
+
+      final notificationCtrl = Get.find<NotificationController>();
 
       if (remoteVersion.isNotEmpty &&
+          remoteVersion.trim() == packageInfo.version.trim()) {
+        await notificationCtrl.removeUpdateNotification();
+      } else if (remoteVersion.isNotEmpty &&
           remoteVersion.trim() != packageInfo.version.trim()) {
-        debugPrint('Update Available! Showing dialog...');
-        _showUpdateDialog(remoteVersion, apkUrl, forceUpdate);
-      } else {
-        debugPrint('No Update Needed.');
+        bool alreadyExists = notificationCtrl.notifications.any(
+          (n) => n.actionType == 'update',
+        );
+        if (!alreadyExists) {
+          await notificationCtrl.addNotification(
+            title: 'Update Available! 🚀',
+            message: 'Version $remoteVersion is ready. Tap to install.',
+            icon: '⚡',
+            isPinned: true,
+            actionType: 'update',
+          );
+        }
+        // অ্যাপ ওপেন হলেও ডায়ালগ দেখাবে
+        showUpdateDialog(remoteVersion, apkUrl, forceUpdate);
       }
     } catch (e) {
       debugPrint('Update Check Error: $e');
     }
   }
 
-  void _showUpdateDialog(String version, String url, bool forceUpdate) {
-    Get.dialog(
-      PopScope(
-        canPop: !forceUpdate,
-        child: AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text(
-            'New Update Available! 🚀',
-            style: TextStyle(
-              color: AppColors.neonGreen,
-              fontWeight: FontWeight.bold,
-            ),
+  // পাবলিক মেথড
+  void showUpdateDialog(String version, String url, bool forceUpdate) {
+    Get.defaultDialog(
+      title: 'New Update Available',
+      titleStyle: const TextStyle(
+        color: AppColors.neonGreen,
+        fontWeight: FontWeight.bold,
+      ),
+      backgroundColor: AppColors.surface,
+      barrierDismissible: !forceUpdate,
+      content: Column(
+        children: [
+          const Icon(Icons.system_update, size: 50, color: AppColors.neonGreen),
+          const SizedBox(height: 10),
+          Text(
+            'Version $version is ready to download.',
+            style: const TextStyle(color: Colors.white),
           ),
-          content: Obx(
-            () => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Version $version is ready.',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                if (isDownloading.value) ...[
-                  const SizedBox(height: 10),
-                  LinearProgressIndicator(
-                    value: downloadProgress.value,
-                    color: AppColors.neonGreen,
-                  ),
-                  Text(
-                    '${(downloadProgress.value * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ],
-              ],
-            ),
+          Obx(
+            () => isDownloading.value
+                ? Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      LinearProgressIndicator(
+                        value: downloadProgress.value,
+                        color: AppColors.neonGreen,
+                      ),
+                    ],
+                  )
+                : const SizedBox(),
           ),
-          actions: [
-            if (!isDownloading.value) ...[
-              if (!forceUpdate)
-                TextButton(
-                  onPressed: () => Get.back(),
-                  child: const Text('Later'),
-                ),
-              ElevatedButton(
+        ],
+      ),
+      confirm: Obx(
+        () => isDownloading.value
+            ? const SizedBox()
+            : ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.neonGreen,
                 ),
-                onPressed: () => _downloadAndInstall(url),
+                onPressed: () => downloadAndInstall(url),
                 child: const Text(
                   'Update Now',
                   style: TextStyle(color: Colors.black),
                 ),
               ),
-            ],
-          ],
-        ),
       ),
-      barrierDismissible: !forceUpdate,
+      cancel: forceUpdate
+          ? null
+          : TextButton(
+              onPressed: () => Get.back(),
+              child: const Text(
+                'Later',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
     );
   }
 
-  Future<void> _downloadAndInstall(String url) async {
-    // অ্যান্ড্রয়েড ১৩ বা তার ওপরের ভার্সনের জন্য পারমিশন চেক
+  Future<void> downloadAndInstall(String url) async {
     final status = await Permission.storage.request();
     final manageStatus = await Permission.manageExternalStorage.request();
 
@@ -128,7 +134,6 @@ class UpdateService extends GetxService {
             await getExternalStorageDirectory() ??
             await getApplicationDocumentsDirectory();
         String path = "${dir.path}/mrexpense_update.apk";
-
         await Dio().download(
           url,
           path,
@@ -136,29 +141,17 @@ class UpdateService extends GetxService {
             if (total != -1) downloadProgress.value = rec / total;
           },
         );
-
         isDownloading.value = false;
         await OpenFilex.open(path);
         Get.back();
       } catch (e) {
         isDownloading.value = false;
-        debugPrint('Download/Install Error: $e');
         Get.snackbar(
           'Error',
           'Update failed!',
           backgroundColor: AppColors.expenseRed,
         );
       }
-    } else {
-      // পারমিশন ডিনায়েড হলে সেটিংসে যাওয়ার অপশন
-      Get.snackbar(
-        'Permission Required',
-        'ডাউনলোডের জন্য স্টোরেজ পারমিশন প্রয়োজন।',
-        mainButton: TextButton(
-          onPressed: openAppSettings,
-          child: const Text('Settings'),
-        ),
-      );
     }
   }
 }
