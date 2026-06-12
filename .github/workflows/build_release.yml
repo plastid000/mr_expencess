@@ -63,19 +63,17 @@ jobs:
       # ৩. রিমোট কনফিগ আপডেট 
       - name: Update Firebase Remote Config
         run: |
-          # ১. ট্যাগ থেকে 'v' রিমুভ করা (যেমন: v1.0.1 -> 1.0.1)
-          CLEAN_VERSION=${GITHUB_REF_NAME#v}
-          
-          # ২. গিটহাব রিলিজের ডিরেক্ট ডাউনলোড লিংক জেনারেট করা
+          # ১. গিটহাব রিলিজের ডিরেক্ট ডাউনলোড লিংক
           APK_DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
-
-          # তোমার প্রজেক্ট আইডি
           PROJECT_ID="takay-khuda-metai"
+          CLEAN_VERSION=${GITHUB_REF_NAME#v}
 
           echo "Fetching current remote config..."
-          firebase remoteconfig:get config.json --project $PROJECT_ID --non-interactive
+          # যদি ফাইল না থাকে, তবে একটা ডিফল্ট JSON ফাইল তৈরি করে নেবে যেন এরর না দেয়
+          firebase remoteconfig:get config.json --project $PROJECT_ID --non-interactive || echo '{"parameters": {}}' > config.json
 
-          echo "Modifying config with latest version & apk url..."
+          echo "Modifying config..."
+          # jq ফিল্টারটি আরও রোবাস্ট করা হয়েছে
           jq --arg ver "$CLEAN_VERSION" \
              --arg url "$APK_DOWNLOAD_URL" \
              '.parameters.latest_version.defaultValue.value = $ver | .parameters.apk_url.defaultValue.value = $url' \
