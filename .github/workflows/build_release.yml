@@ -63,7 +63,7 @@ jobs:
           APK_DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
 
           # ⚠️ তোমার ফায়ারবেস প্রজেক্ট আইডিটা এখানে বসাও
-          PROJECT_ID="your-firebase-project-id"
+          PROJECT_ID="takay-khuda-metai"
 
           echo "Fetching current remote config..."
           firebase remoteconfig:get config.json --project $PROJECT_ID
