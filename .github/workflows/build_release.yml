@@ -3,7 +3,7 @@ name: Build & Release MR Expense APK
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*' # শুধুমাত্র v1.0.1, v1.0.2 টাইপের ট্যাগ পুশ করলেই এটা রান করবে
 
 jobs:
   build:
@@ -43,32 +43,36 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 🔥 Firebase Automation Start 🔥
+      # 🔥 Firebase Automation (REST API Method - Ultra Fast & Secure) 🔥
       
-      - name: Authenticate to Google/Firebase
+      - name: Authenticate to Google
         uses: google-github-actions/auth@v2
         with:
           credentials_json: '${{ secrets.FIREBASE_CREDENTIALS }}'
 
-      # ২. নোড ও ফায়ারবেস সিএলআই সেটআপ (Stable Method)
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Install Firebase Tools
-        run: npm install -g firebase-tools
-
-      # ৩. রিমোট কনফিগ আপডেট 
-      - name: Update Firebase Remote Config
+      - name: Update Firebase Remote Config via REST API
         run: |
           APK_DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
           PROJECT_ID="takay-khuda-metai"
           CLEAN_VERSION=${GITHUB_REF_NAME#v}
+          
+          echo "Generating Access Token..."
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
 
-          echo "Fetching current remote config..."
-          # --debug ফ্ল্যাগ অ্যাড করা হলো এক্সাক্ট এরর ট্র্যাক করার জন্য
-          firebase remoteconfig:get config.json --project $PROJECT_ID --non-interactive --debug
+          echo "Fetching current remote config & ETag..."
+          curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+               -H "Accept-Encoding: gzip" \
+               --compressed \
+               "https://firebaseremoteconfig.googleapis.com/v1/projects/$PROJECT_ID/remoteConfig" \
+               -o config.json \
+               -D headers.txt
+
+          # ETag এক্সট্রাক্ট করা (ফায়ারবেসের ওভাররাইট প্রোটেকশনের জন্য মাস্ট)
+          ETAG=$(grep -i '^etag:' headers.txt | awk '{print $2}' | tr -d '\r')
+          echo "ETag captured: $ETAG"
 
           echo "Modifying config with jq..."
           jq --arg ver "$CLEAN_VERSION" \
@@ -77,4 +81,9 @@ jobs:
              config.json > updated_config.json
 
           echo "Publishing to Firebase..."
-          firebase remoteconfig:publish updated_config.json --project $PROJECT_ID --force --non-interactive --debug
+          curl -s -X PUT \
+               -H "Authorization: Bearer $ACCESS_TOKEN" \
+               -H "Content-Type: application/json; UTF8" \
+               -H "If-Match: $ETAG" \
+               -d @updated_config.json \
+               "https://firebaseremoteconfig.googleapis.com/v1/projects/$PROJECT_ID/remoteConfig"
