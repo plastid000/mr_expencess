@@ -1,133 +1,163 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:ota_update/ota_update.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../constants/app_colors.dart';
 
 class UpdateService extends GetxService {
   final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
+  var downloadProgress = 0.0.obs;
+  var isDownloading = false.obs;
 
   Future<UpdateService> init() async {
-    await checkForUpdate();
+    // UI বিল্ড হওয়ার জন্য সামান্য ডিলে দিয়ে চেক করা শুরু হচ্ছে
+    Future.delayed(const Duration(seconds: 2), () {
+      _checkForUpdate();
+    });
     return this;
   }
 
-  Future<void> checkForUpdate() async {
+  Future<void> _checkForUpdate() async {
     try {
-      // Remote Config সেটআপ (ফাস্ট ফেচিংয়ের জন্য টাইমআউট কমানো হলো)
       await _remoteConfig.setConfigSettings(
         RemoteConfigSettings(
           fetchTimeout: const Duration(seconds: 10),
-          minimumFetchInterval: const Duration(
-            minutes: 1,
-          ), // প্রোডাকশনে এটা কয়েক ঘণ্টা করে দিও
+          minimumFetchInterval: const Duration(seconds: 0),
         ),
       );
       await _remoteConfig.fetchAndActivate();
 
-      // সার্ভার থেকে ডেটা নেওয়া
       String remoteVersion = _remoteConfig.getString('latest_version');
-      String apkUrl = _remoteConfig.getString('apk_url');
+      String apkUrl = _remoteConfig.getString('apk_url').isNotEmpty
+          ? _remoteConfig.getString('apk_url')
+          : 'https://google.com';
+      bool forceUpdate = _remoteConfig.getBool('force_update');
 
-      // অ্যাপের বর্তমান ভার্সন চেক করা
+      debugPrint('Firebase Remote Version: $remoteVersion');
+      debugPrint('Firebase APK URL: $apkUrl');
+
       PackageInfo packageInfo = await PackageInfo.fromPlatform();
-      String currentVersion = packageInfo.version;
+      debugPrint('Current App Version: ${packageInfo.version}');
 
-      // ভার্সন কম্পেয়ার করা
       if (remoteVersion.isNotEmpty &&
-          apkUrl.isNotEmpty &&
-          _isUpdateAvailable(currentVersion, remoteVersion)) {
-        _showUpdateDialog(remoteVersion, apkUrl);
+          remoteVersion.trim() != packageInfo.version.trim()) {
+        debugPrint('Update Available! Showing dialog...');
+        _showUpdateDialog(remoteVersion, apkUrl, forceUpdate);
+      } else {
+        debugPrint('No Update Needed.');
       }
     } catch (e) {
       debugPrint('Update Check Error: $e');
     }
   }
 
-  // ভার্সন কম্পেয়ার লজিক (e.g. 1.0.0 vs 1.0.1)
-  bool _isUpdateAvailable(String current, String remote) {
-    try {
-      List<int> currVals = current.split('.').map(int.parse).toList();
-      List<int> remVals = remote.split('.').map(int.parse).toList();
-      for (int i = 0; i < 3; i++) {
-        if (remVals[i] > currVals[i]) return true;
-        if (remVals[i] < currVals[i]) return false;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  void _showUpdateDialog(String version, String url) {
-    Get.defaultDialog(
-      barrierDismissible: false, // ইউজার যেন ইগনোর করতে না পারে (Force Update)
-      backgroundColor: AppColors.surface,
-      title: 'New Update Available! 🚀',
-      titleStyle: const TextStyle(
-        color: AppColors.neonGreen,
-        fontWeight: FontWeight.bold,
-      ),
-      content: Text(
-        'Version $version is ready to install.',
-        style: const TextStyle(color: Colors.white70),
-      ),
-      confirm: ElevatedButton(
-        style: ElevatedButton.styleFrom(backgroundColor: AppColors.neonGreen),
-        onPressed: () {
-          Get.back();
-          _downloadAndInstall(url);
-        },
-        child: const Text(
-          'Update Now',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+  void _showUpdateDialog(String version, String url, bool forceUpdate) {
+    Get.dialog(
+      PopScope(
+        canPop: !forceUpdate,
+        child: AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text(
+            'New Update Available! 🚀',
+            style: TextStyle(
+              color: AppColors.neonGreen,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Obx(
+            () => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Version $version is ready.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                if (isDownloading.value) ...[
+                  const SizedBox(height: 10),
+                  LinearProgressIndicator(
+                    value: downloadProgress.value,
+                    color: AppColors.neonGreen,
+                  ),
+                  Text(
+                    '${(downloadProgress.value * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            if (!isDownloading.value) ...[
+              if (!forceUpdate)
+                TextButton(
+                  onPressed: () => Get.back(),
+                  child: const Text('Later'),
+                ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.neonGreen,
+                ),
+                onPressed: () => _downloadAndInstall(url),
+                child: const Text(
+                  'Update Now',
+                  style: TextStyle(color: Colors.black),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
-      cancel: TextButton(
-        onPressed: () => Get.back(),
-        child: const Text('Later', style: TextStyle(color: Colors.white54)),
-      ),
+      barrierDismissible: !forceUpdate,
     );
   }
 
   Future<void> _downloadAndInstall(String url) async {
-    // স্টোরেজ পারমিশন চেক
-    var status = await Permission.storage.status;
-    if (!status.isGranted) {
-      await Permission.storage.request();
-    }
+    // অ্যান্ড্রয়েড ১৩ বা তার ওপরের ভার্সনের জন্য পারমিশন চেক
+    final status = await Permission.storage.request();
+    final manageStatus = await Permission.manageExternalStorage.request();
 
-    Get.snackbar(
-      'Downloading...',
-      'আপডেট ব্যাকগ্রাউন্ডে ডাউনলোড হচ্ছে।',
-      backgroundColor: AppColors.surface,
-      colorText: AppColors.neonGreen,
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    if (status.isGranted || manageStatus.isGranted) {
+      isDownloading.value = true;
+      try {
+        Directory? dir =
+            await getExternalStorageDirectory() ??
+            await getApplicationDocumentsDirectory();
+        String path = "${dir.path}/mrexpense_update.apk";
 
-    try {
-      OtaUpdate()
-          .execute(url, destinationFilename: 'mrexpense_update.apk')
-          .listen((OtaEvent event) {
-            if (event.status == OtaStatus.INSTALLING) {
-              Get.snackbar(
-                'Success',
-                'ইন্সটলেশন শুরু হচ্ছে...',
-                backgroundColor: AppColors.surface,
-                colorText: AppColors.neonGreen,
-              );
-            } else if (event.status == OtaStatus.DOWNLOADING) {
-              // চাইলে এখানে প্রগ্রেস বার দেখানো যায়
-            }
-          });
-    } catch (e) {
+        await Dio().download(
+          url,
+          path,
+          onReceiveProgress: (rec, total) {
+            if (total != -1) downloadProgress.value = rec / total;
+          },
+        );
+
+        isDownloading.value = false;
+        await OpenFilex.open(path);
+        Get.back();
+      } catch (e) {
+        isDownloading.value = false;
+        debugPrint('Download/Install Error: $e');
+        Get.snackbar(
+          'Error',
+          'Update failed!',
+          backgroundColor: AppColors.expenseRed,
+        );
+      }
+    } else {
+      // পারমিশন ডিনায়েড হলে সেটিংসে যাওয়ার অপশন
       Get.snackbar(
-        'Error',
-        'ডাউনলোড ফেইল হয়েছে!',
-        backgroundColor: AppColors.expenseRed,
-        colorText: Colors.white,
+        'Permission Required',
+        'ডাউনলোডের জন্য স্টোরেজ পারমিশন প্রয়োজন।',
+        mainButton: TextButton(
+          onPressed: openAppSettings,
+          child: const Text('Settings'),
+        ),
       );
     }
   }

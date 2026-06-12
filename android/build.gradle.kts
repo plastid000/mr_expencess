@@ -3,11 +3,22 @@ allprojects {
         google()
         mavenCentral()
     }
+    
+    // Global Rule: Force all Java compilation to 17
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
+    }
+
+    // Global Rule: Force all Kotlin compilation to 17
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
 }
 
-val newBuildDir: Directory =
-    rootProject.layout.buildDirectory.dir("../../build").get()
-
+val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
@@ -15,7 +26,6 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
-// Isar Namespace Fix for Kotlin DSL (অবশ্যই evaluationDependsOn এর উপরে থাকতে হবে)
 subprojects {
     afterEvaluate {
         if (project.plugins.hasPlugin("com.android.library")) {
@@ -23,6 +33,8 @@ subprojects {
                 if (namespace == null) {
                     namespace = project.group.toString()
                 }
+                // Force compileSdk 34 for all plugins to prevent lStar errors
+                compileSdk = 34
             }
         }
     }

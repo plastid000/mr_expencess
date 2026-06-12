@@ -23,7 +23,7 @@ void main() async {
   await Get.putAsync(() => SecurityService().init());
 
   // অটো আপডেট সার্ভিস স্টার্ট (অ্যাপ ওপেন হওয়ার সাথে সাথেই চেক করবে)
-  await Get.putAsync(() => UpdateService().init());
+  Get.putAsync(() => UpdateService().init());
 
   runApp(const MrExpenseApp());
 }

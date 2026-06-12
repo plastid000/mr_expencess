@@ -7,18 +7,23 @@ plugins {
 
 android {
     namespace = "com.mrtechbd.mrexpense"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
+    defaultConfig {
+        minSdk = 34 // বা তোমার যেটা দরকার
+        targetSdk = 36
+        // ...
+    }
     ndkVersion = flutter.ndkVersion
 
     // Desugaring এর জন্য এই ব্লকটা খুব জরুরি
     compileOptions {
         isCoreLibraryDesugaringEnabled = true // এনাবল করা হলো
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17 // 1_8 থেকে 17 করো
+        targetCompatibility = JavaVersion.VERSION_17 // 1_8 থেকে 17 করো
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17" // 1.8 থেকে 17 করো
     }
 
     defaultConfig {
