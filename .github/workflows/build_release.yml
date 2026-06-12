@@ -3,7 +3,7 @@ name: Build & Release MR Expense APK
 on:
   push:
     tags:
-      - 'v*' # শুধুমাত্র v1.0.1, v1.0.2 টাইপের ট্যাগ পুশ করলেই এটা রান করবে
+      - 'v*'
 
 jobs:
   build:
@@ -45,39 +45,30 @@ jobs:
 
       # 🔥 Firebase Automation Start 🔥
       
-      # ১. গুগলের অফিসিয়াল অ্যাকশন দিয়ে সিকিউর অথেনটিকেশন (নো ম্যানুয়াল ফাইল রাইটিং!)
       - name: Authenticate to Google/Firebase
         uses: google-github-actions/auth@v2
         with:
           credentials_json: '${{ secrets.FIREBASE_CREDENTIALS }}'
 
-      # ২. নোড ও ফায়ারবেস সিএলআই সেটআপ
-      - name: Setup Node.js & Firebase CLI
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          
-      - name: Install Firebase Tools
-        run: npm install -g firebase-tools
 
-      # ৩. রিমোট কনফিগ আপডেট 
       - name: Update Firebase Remote Config
         run: |
-          # ১. গিটহাব রিলিজের ডিরেক্ট ডাউনলোড লিংক
           APK_DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
           PROJECT_ID="takay-khuda-metai"
           CLEAN_VERSION=${GITHUB_REF_NAME#v}
 
           echo "Fetching current remote config..."
-          # যদি ফাইল না থাকে, তবে একটা ডিফল্ট JSON ফাইল তৈরি করে নেবে যেন এরর না দেয়
-          firebase remoteconfig:get config.json --project $PROJECT_ID --non-interactive || echo '{"parameters": {}}' > config.json
+          npx firebase-tools remoteconfig:get config.json --project $PROJECT_ID --non-interactive
 
-          echo "Modifying config..."
-          # jq ফিল্টারটি আরও রোবাস্ট করা হয়েছে
+          echo "Modifying config with jq..."
           jq --arg ver "$CLEAN_VERSION" \
              --arg url "$APK_DOWNLOAD_URL" \
              '.parameters.latest_version.defaultValue.value = $ver | .parameters.apk_url.defaultValue.value = $url' \
              config.json > updated_config.json
 
           echo "Publishing to Firebase..."
-          firebase remoteconfig:publish updated_config.json --project $PROJECT_ID --force --non-interactive
+          npx firebase-tools remoteconfig:publish updated_config.json --project $PROJECT_ID --force --non-interactive
