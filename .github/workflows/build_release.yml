@@ -50,11 +50,16 @@ jobs:
         with:
           credentials_json: '${{ secrets.FIREBASE_CREDENTIALS }}'
 
+      # ২. নোড ও ফায়ারবেস সিএলআই সেটআপ (Stable Method)
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
+      - name: Install Firebase Tools
+        run: npm install -g firebase-tools
+
+      # ৩. রিমোট কনফিগ আপডেট 
       - name: Update Firebase Remote Config
         run: |
           APK_DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
@@ -62,7 +67,8 @@ jobs:
           CLEAN_VERSION=${GITHUB_REF_NAME#v}
 
           echo "Fetching current remote config..."
-          npx firebase-tools remoteconfig:get config.json --project $PROJECT_ID --non-interactive
+          # --debug ফ্ল্যাগ অ্যাড করা হলো এক্সাক্ট এরর ট্র্যাক করার জন্য
+          firebase remoteconfig:get config.json --project $PROJECT_ID --non-interactive --debug
 
           echo "Modifying config with jq..."
           jq --arg ver "$CLEAN_VERSION" \
@@ -71,4 +77,4 @@ jobs:
              config.json > updated_config.json
 
           echo "Publishing to Firebase..."
-          npx firebase-tools remoteconfig:publish updated_config.json --project $PROJECT_ID --force --non-interactive
+          firebase remoteconfig:publish updated_config.json --project $PROJECT_ID --force --non-interactive --debug
