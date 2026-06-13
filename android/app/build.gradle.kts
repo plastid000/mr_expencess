@@ -8,6 +8,7 @@ plugins {
 android {
     namespace = "com.mrtechbd.mrexpense"
     compileSdk = 36
+    ndkVersion = "28.2.13676358"
 
     // Desugaring এর জন্য এই ব্লকটা খুব জরুরি
     compileOptions {
