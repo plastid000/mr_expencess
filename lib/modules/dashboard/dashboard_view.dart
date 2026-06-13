@@ -45,7 +45,7 @@ class DashboardView extends StatelessWidget {
             side: BorderSide(color: AppColors.neonGreen, width: 2),
           ),
           backgroundColor: Colors.transparent,
-          foregroundColor: AppColors.neonGreen,
+          foregroundColor: AppColors.expenseRed,
           elevation: 0,
           highlightElevation: 0,
           onPressed: () => _showQuickActionBottomSheet(),
