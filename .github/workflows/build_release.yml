@@ -8,51 +8,81 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
 
     steps:
+      # =========================
+      # Checkout
+      # =========================
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
+      # =========================
+      # Java Setup
+      # =========================
       - name: Setup Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: zulu
           java-version: '17'
 
+      # =========================
+      # Flutter Setup
+      # =========================
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
           cache: true
 
+      # =========================
+      # Install jq
+      # =========================
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # =========================
+      # Flutter Dependencies
+      # =========================
       - name: Install Dependencies
         run: flutter pub get
 
-      # 🔐 Decode Keystore (IMPORTANT FIX)
+      # =========================
+      # Decode Android Keystore
+      # =========================
       - name: Decode Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
 
-      # 🔍 Debug Secrets (FIXED)
+      # =========================
+      # Debug Signing Config
+      # =========================
       - name: Debug Secrets
         env:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           echo "KEY_ALIAS=$KEY_ALIAS"
 
-      # 📦 Build APK (SIGNED)
+      # =========================
+      # Build Signed APK
+      # =========================
       - name: Build APK (Release)
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release
 
-      # 🚀 Upload APK to GitHub Release
-      - name: Upload to GitHub Releases
-        uses: softprops/action-gh-release@v1
+      # =========================
+      # Upload GitHub Release
+      # =========================
+      - name: Upload APK to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           files: build/app/outputs/flutter-apk/app-release.apk
           name: Release ${{ github.ref_name }}
@@ -61,39 +91,109 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 🔥 Firebase Authentication
+      # =========================
+      # Google Authentication
+      # =========================
       - name: Authenticate to Google
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_CREDENTIALS }}
+          credentials_json: '${{ secrets.FIREBASE_CREDENTIALS }}'
 
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      # ⚡ Firebase Remote Config Update
-      - name: Update Firebase Remote Config via REST API
+      # =========================
+      # Firebase Remote Config
+      # =========================
+      - name: Update Firebase Remote Config
+        shell: bash
         run: |
-          APK_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
-          PROJECT_ID="takay-khuda-metai"
-          VERSION=${GITHUB_REF_NAME#v}
+          set -e
 
+          PROJECT_ID="takay-khuda-metai"
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          APK_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
+
+          echo "==============================="
+          echo "Version : $VERSION"
+          echo "APK URL : $APK_URL"
+          echo "==============================="
+
+          echo "Generating Access Token..."
           ACCESS_TOKEN=$(gcloud auth print-access-token)
 
-          curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-               "https://firebaseremoteconfig.googleapis.com/v1/projects/$PROJECT_ID/remoteConfig" \
-               -o config.json -D headers.txt
+          echo "Fetching current Remote Config..."
+
+          curl -s \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Accept-Encoding: gzip" \
+            --compressed \
+            "https://firebaseremoteconfig.googleapis.com/v1/projects/$PROJECT_ID/remoteConfig" \
+            -o config.json \
+            -D headers.txt
+
+          echo "Reading ETag..."
 
           ETAG=$(grep -i '^etag:' headers.txt | awk '{print $2}' | tr -d '\r')
 
+          if [ -z "$ETAG" ]; then
+            echo "ERROR: Could not retrieve ETag"
+            echo "Headers:"
+            cat headers.txt
+            exit 1
+          fi
+
+          echo "ETag Found: $ETAG"
+
+          echo "Creating updated config..."
+
           jq --arg ver "$VERSION" \
              --arg url "$APK_URL" \
-             '.parameters.latest_version.defaultValue.value = $ver |
-              .parameters.apk_url.defaultValue.value = $url' \
-             config.json > updated_config.json
+             '
+             .parameters.latest_version = {
+               "defaultValue": {
+                 "value": $ver
+               }
+             } |
+             .parameters.apk_url = {
+               "defaultValue": {
+                 "value": $url
+               }
+             }
+             ' config.json > updated_config.json
 
-          curl -s -X PUT \
-               -H "Authorization: Bearer $ACCESS_TOKEN" \
-               -H "Content-Type: application/json; UTF8" \
-               -H "If-Match: $ETAG" \
-               -d @updated_config.json \
-               "https://firebaseremoteconfig.googleapis.com/v1/projects/$PROJECT_ID/remoteConfig"
+          echo "Updated Config Preview:"
+          cat updated_config.json
+
+          echo "Publishing Remote Config..."
+
+          HTTP_CODE=$(curl -s \
+            -o response.json \
+            -w "%{http_code}" \
+            -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json; charset=UTF-8" \
+            -H "If-Match: $ETAG" \
+            -d @updated_config.json \
+            "https://firebaseremoteconfig.googleapis.com/v1/projects/$PROJECT_ID/remoteConfig")
+
+          echo "HTTP Status: $HTTP_CODE"
+
+          echo "Response:"
+          cat response.json
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Firebase Remote Config update failed!"
+            exit 1
+          fi
+
+          echo "Remote Config updated successfully."
+
+      # =========================
+      # Workflow Finished
+      # =========================
+      - name: Success
+        run: |
+          echo "Release Complete!"
+          echo "Version: ${GITHUB_REF_NAME}"

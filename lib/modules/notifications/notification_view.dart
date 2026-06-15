@@ -1,4 +1,3 @@
-import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mr_expense/core/services/update_service.dart';
@@ -18,7 +17,6 @@ class NotificationView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // কন্ট্রোলার পুট করা
     final NotificationController controller = Get.put(NotificationController());
 
     return Scaffold(
@@ -67,9 +65,7 @@ class NotificationView extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isRead
                     ? AppColors.surface
-                    : AppColors.neonGreen.withValues(
-                        alpha: 0.05,
-                      ), // ফিক্সড Deprecation
+                    : AppColors.neonGreen.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(15),
                 border: isRead
                     ? null
@@ -80,14 +76,10 @@ class NotificationView extends StatelessWidget {
               child: InkWell(
                 onTap: () {
                   if (notif.actionType == 'update') {
-                    // 🔥 ডিরেক্ট সার্ভিস কল
-                    final updateService = Get.find<UpdateService>();
-                    final remoteConfig = FirebaseRemoteConfig.instance;
-                    updateService.showUpdateDialog(
-                      remoteConfig.getString('latest_version'),
-                      remoteConfig.getString('apk_url'),
-                      false,
-                    );
+                    // 🔥 ক্র্যাশ ফিক্স: প্যারামিটার ছাড়াই সঠিক মেথড কল করা হলো
+                    if (Get.isRegistered<UpdateService>()) {
+                      Get.find<UpdateService>().showUpdateDialogFromPayload();
+                    }
                   }
                 },
                 child: Row(
@@ -164,41 +156,6 @@ class NotificationView extends StatelessWidget {
           },
         );
       }),
-    );
-  }
-
-  // আপডেট পপআপ ডায়ালগ
-  void _showUpdateDialog() {
-    Get.defaultDialog(
-      backgroundColor: AppColors.surface,
-      title: 'Update Available',
-      titleStyle: const TextStyle(
-        color: AppColors.neonGreen,
-        fontWeight: FontWeight.bold,
-      ),
-      content: const Column(
-        children: [
-          Icon(Icons.system_update, color: AppColors.neonGreen, size: 50),
-          SizedBox(height: 10),
-          Text(
-            'New features and security fixes are waiting for you!',
-            style: TextStyle(color: Colors.white),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-      confirm: ElevatedButton(
-        style: ElevatedButton.styleFrom(backgroundColor: AppColors.neonGreen),
-        onPressed: () {
-          // এখানে আপডেট ডাউনলোডের লজিক হবে
-          Get.back();
-        },
-        child: const Text('Update Now', style: TextStyle(color: Colors.black)),
-      ),
-      cancel: TextButton(
-        onPressed: () => Get.back(),
-        child: const Text('Later', style: TextStyle(color: Colors.white70)),
-      ),
     );
   }
 }

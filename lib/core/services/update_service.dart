@@ -2,27 +2,31 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'package:mr_expense/modules/notifications/notification_controller.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../constants/app_colors.dart';
+import 'system_notification_service.dart'; // 🔥 সিস্টেম নোটিফিকেশন
 
 class UpdateService extends GetxService {
   final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
   var downloadProgress = 0.0.obs;
   var isDownloading = false.obs;
 
+  String? _latestVersion;
+  String? _apkUrl;
+  bool _forceUpdate = false;
+  String? _currentVersion;
+
   Future<UpdateService> init() async {
-    Future.delayed(const Duration(seconds: 2), () {
-      _checkForUpdate();
-    });
+    // 🔥 অটোমেটিক চেক বাদ। এখন শুধু আনলক হলেই চেক হবে!
     return this;
   }
 
-  Future<void> _checkForUpdate() async {
+  // এই মেথডটা আনলক করার পর কল হবে
+  Future<void> checkForUpdate() async {
     try {
       await _remoteConfig.setConfigSettings(
         RemoteConfigSettings(
@@ -32,68 +36,92 @@ class UpdateService extends GetxService {
       );
       await _remoteConfig.fetchAndActivate();
 
-      String remoteVersion = _remoteConfig.getString('latest_version');
-      String apkUrl = _remoteConfig.getString('apk_url');
-      bool forceUpdate = _remoteConfig.getBool('force_update');
+      _latestVersion = _remoteConfig.getString('latest_version');
+      _apkUrl = _remoteConfig.getString('apk_url');
+      _forceUpdate = _remoteConfig.getBool('force_update');
+
       PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      _currentVersion = packageInfo.version;
 
-      final notificationCtrl = Get.find<NotificationController>();
+      final sysNotification = Get.find<SystemNotificationService>();
 
-      if (remoteVersion.isNotEmpty &&
-          remoteVersion.trim() == packageInfo.version.trim()) {
-        await notificationCtrl.removeUpdateNotification();
-      } else if (remoteVersion.isNotEmpty &&
-          remoteVersion.trim() != packageInfo.version.trim()) {
-        bool alreadyExists = notificationCtrl.notifications.any(
-          (n) => n.actionType == 'update',
-        );
-        if (!alreadyExists) {
-          await notificationCtrl.addNotification(
-            title: 'Update Available! 🚀',
-            message: 'Version $remoteVersion is ready. Tap to install.',
-            icon: '⚡',
-            isPinned: true,
-            actionType: 'update',
-          );
-        }
-        // অ্যাপ ওপেন হলেও ডায়ালগ দেখাবে
-        showUpdateDialog(remoteVersion, apkUrl, forceUpdate);
+      if (_latestVersion != null &&
+          _latestVersion!.isNotEmpty &&
+          _latestVersion!.trim() != _currentVersion!.trim()) {
+        // ১. সিস্টেম নোটিফিকেশন পুশ করা
+        sysNotification.showUpdateNotification(_latestVersion!, _forceUpdate);
+        // ২. ডিরেক্ট ডায়ালগ শো করা
+        showUpdateDialog();
+      } else {
+        // অলরেডি লেটেস্ট ভার্সনে থাকলে নোটিফিকেশন ক্লিয়ার করে দিবে
+        sysNotification.cancelUpdateNotification();
       }
     } catch (e) {
-      debugPrint('Update Check Error: $e');
+      debugPrint(
+        'Update Check Error: $e',
+      ); // ইন্টারনেট না থাকলে সাইলেন্টলি স্কিপ করবে
     }
   }
 
-  // পাবলিক মেথড
-  void showUpdateDialog(String version, String url, bool forceUpdate) {
+  void showUpdateDialogFromPayload() {
+    if (_latestVersion != null)
+      showUpdateDialog();
+    else
+      checkForUpdate();
+  }
+
+  void showUpdateDialog() {
+    if (Get.isDialogOpen == true) return;
+
     Get.defaultDialog(
-      title: 'New Update Available',
+      title: 'Update Available 🚀',
       titleStyle: const TextStyle(
         color: AppColors.neonGreen,
         fontWeight: FontWeight.bold,
       ),
       backgroundColor: AppColors.surface,
-      barrierDismissible: !forceUpdate,
+      barrierDismissible:
+          !_forceUpdate, // ফোর্স আপডেট হলে বাইরে ক্লিক করে কাটতে পারবে না
       content: Column(
         children: [
           const Icon(Icons.system_update, size: 50, color: AppColors.neonGreen),
-          const SizedBox(height: 10),
+          const SizedBox(height: 15),
+          // 🔥 রিকোয়ারমেন্ট অনুযায়ী ২টা ভার্সনই দেখানো হচ্ছে
           Text(
-            'Version $version is ready to download.',
-            style: const TextStyle(color: Colors.white),
+            'Current Version: $_currentVersion',
+            style: const TextStyle(color: Colors.white70),
           ),
+          Text(
+            'New Version: $_latestVersion',
+            style: const TextStyle(
+              color: AppColors.neonGreen,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 15),
+
           Obx(
             () => isDownloading.value
                 ? Column(
                     children: [
-                      const SizedBox(height: 10),
+                      Text(
+                        '${(downloadProgress.value * 100).toStringAsFixed(1)}%',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      const SizedBox(height: 5),
                       LinearProgressIndicator(
                         value: downloadProgress.value,
                         color: AppColors.neonGreen,
+                        backgroundColor: Colors.white24,
                       ),
                     ],
                   )
-                : const SizedBox(),
+                : const Text(
+                    'Do you want to update now?',
+                    style: TextStyle(color: Colors.white),
+                    textAlign: TextAlign.center,
+                  ),
           ),
         ],
       ),
@@ -104,30 +132,38 @@ class UpdateService extends GetxService {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.neonGreen,
                 ),
-                onPressed: () => downloadAndInstall(url),
+                onPressed: () => downloadAndInstall(_apkUrl!),
                 child: const Text(
                   'Update Now',
-                  style: TextStyle(color: Colors.black),
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
       ),
-      cancel: forceUpdate
+      cancel: _forceUpdate
           ? null
-          : TextButton(
-              onPressed: () => Get.back(),
-              child: const Text(
-                'Later',
-                style: TextStyle(color: Colors.white70),
-              ),
+          : Obx(
+              () => isDownloading.value
+                  ? const SizedBox()
+                  : TextButton(
+                      onPressed: () => Get.back(),
+                      child: const Text(
+                        'Later',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
             ),
     );
   }
 
   Future<void> downloadAndInstall(String url) async {
     final status = await Permission.storage.request();
-    final manageStatus = await Permission.manageExternalStorage.request();
+    final installStatus = await Permission.requestInstallPackages
+        .request(); // Android 11+ এর জন্য জরুরি
 
-    if (status.isGranted || manageStatus.isGranted) {
+    if (status.isGranted || installStatus.isGranted) {
       isDownloading.value = true;
       try {
         Directory? dir =
@@ -143,15 +179,23 @@ class UpdateService extends GetxService {
         );
         isDownloading.value = false;
         await OpenFilex.open(path);
-        Get.back();
+        Get.back(); // ডাউনলোড শেষে ডায়ালগ ক্লোজ
       } catch (e) {
         isDownloading.value = false;
         Get.snackbar(
           'Error',
           'Update failed!',
           backgroundColor: AppColors.expenseRed,
+          colorText: Colors.white,
         );
       }
+    } else {
+      Get.snackbar(
+        'Permission Denied',
+        'Storage permission required for update.',
+        backgroundColor: AppColors.expenseRed,
+        colorText: Colors.white,
+      );
     }
   }
 }

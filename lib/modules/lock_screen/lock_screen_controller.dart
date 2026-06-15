@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../core/services/security_service.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/update_service.dart'; // 🔥 আপডেট সার্ভিস ইমপোর্ট করা হলো
 import '../dashboard/dashboard_view.dart';
 
 class LockScreenController extends GetxController {
@@ -10,8 +11,6 @@ class LockScreenController extends GetxController {
 
   var enteredPin = ''.obs;
   var hasError = false.obs;
-
-  // 🔥 র‍্যান্ডমাইজড কিপ্যাড জেনারেটর
   var keypadNumbers = <String>[].obs;
 
   @override
@@ -64,7 +63,7 @@ class LockScreenController extends GetxController {
     } else {
       hasError.value = true;
       enteredPin.value = '';
-      _generateRandomKeypad(); // 🔥 ভুল হলে সাথে সাথে আবার শাফেল হবে
+      _generateRandomKeypad();
       Get.snackbar(
         'Error',
         'ভুল পিন দিয়েছেন!',
@@ -78,9 +77,13 @@ class LockScreenController extends GetxController {
   void unlockApp() {
     GetStorage().write('is_locked', false);
     Get.offAll(() => const DashboardView(), transition: Transition.fadeIn);
+
+    // 🔥 ম্যাজিক: আনলক হওয়ার সাথে সাথেই আপডেট চেক ফায়ার করবে!
+    if (Get.isRegistered<UpdateService>()) {
+      Get.find<UpdateService>().checkForUpdate();
+    }
   }
 
-  // 🔥 Forgot PIN Recovery Workflow
   void forgotPinFlow() {
     String? question = security.getSecurityQuestion();
     if (question == null || question.isEmpty) {
@@ -212,7 +215,7 @@ class LockScreenController extends GetxController {
                     if (val == firstPin) {
                       security.savePin(firstPin, security.pinLength.value);
                       Get.back(); // close dialog
-                      unlockApp();
+                      unlockApp(); // আনলক এবং আপডেট চেক একসাথে হবে
                       Get.snackbar(
                         'Unlocked! 🔓',
                         'New PIN set successfully.',
@@ -238,9 +241,7 @@ class LockScreenController extends GetxController {
         ),
       ),
       cancel: TextButton(
-        onPressed: () {
-          Get.back();
-        },
+        onPressed: () => Get.back(),
         child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
       ),
     );
