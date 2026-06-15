@@ -3,13 +3,13 @@ name: Build & Release MR Expense APK
 on:
   push:
     tags:
-      - 'v*' # শুধুমাত্র v1.0.1, v1.0.2 টাইপের ট্যাগ পুশ করলেই এটা রান করবে
+      - 'v*'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write 
+      contents: write
 
     steps:
       - name: Checkout Code
@@ -25,19 +25,24 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true 
+          cache: true
 
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Debug Secrets
-        run: |
-          echo "KEY_ALIAS=$KEY_ALIAS"
-
+      # 🔐 Decode Keystore (IMPORTANT FIX)
       - name: Decode Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
 
+      # 🔍 Debug Secrets (FIXED)
+      - name: Debug Secrets
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "KEY_ALIAS=$KEY_ALIAS"
+
+      # 📦 Build APK (SIGNED)
       - name: Build APK (Release)
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -45,6 +50,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: flutter build apk --release
 
+      # 🚀 Upload APK to GitHub Release
       - name: Upload to GitHub Releases
         uses: softprops/action-gh-release@v1
         with:
@@ -55,44 +61,36 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 🔥 Firebase Automation (REST API Method - Ultra Fast & Secure) 🔥
-      
+      # 🔥 Firebase Authentication
       - name: Authenticate to Google
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: '${{ secrets.FIREBASE_CREDENTIALS }}'
+          credentials_json: ${{ secrets.FIREBASE_CREDENTIALS }}
 
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      # ⚡ Firebase Remote Config Update
       - name: Update Firebase Remote Config via REST API
         run: |
-          APK_DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
+          APK_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk"
           PROJECT_ID="takay-khuda-metai"
-          CLEAN_VERSION=${GITHUB_REF_NAME#v}
-          
-          echo "Generating Access Token..."
+          VERSION=${GITHUB_REF_NAME#v}
+
           ACCESS_TOKEN=$(gcloud auth print-access-token)
 
-          echo "Fetching current remote config & ETag..."
           curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-               -H "Accept-Encoding: gzip" \
-               --compressed \
                "https://firebaseremoteconfig.googleapis.com/v1/projects/$PROJECT_ID/remoteConfig" \
-               -o config.json \
-               -D headers.txt
+               -o config.json -D headers.txt
 
-          # ETag এক্সট্রাক্ট করা (ফায়ারবেসের ওভাররাইট প্রোটেকশনের জন্য মাস্ট)
           ETAG=$(grep -i '^etag:' headers.txt | awk '{print $2}' | tr -d '\r')
-          echo "ETag captured: $ETAG"
 
-          echo "Modifying config with jq..."
-          jq --arg ver "$CLEAN_VERSION" \
-             --arg url "$APK_DOWNLOAD_URL" \
-             '.parameters.latest_version.defaultValue.value = $ver | .parameters.apk_url.defaultValue.value = $url' \
+          jq --arg ver "$VERSION" \
+             --arg url "$APK_URL" \
+             '.parameters.latest_version.defaultValue.value = $ver |
+              .parameters.apk_url.defaultValue.value = $url' \
              config.json > updated_config.json
 
-          echo "Publishing to Firebase..."
           curl -s -X PUT \
                -H "Authorization: Bearer $ACCESS_TOKEN" \
                -H "Content-Type: application/json; UTF8" \
