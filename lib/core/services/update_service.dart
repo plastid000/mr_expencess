@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:mr_expense/modules/notifications/notification_controller.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -25,6 +26,7 @@ class UpdateService extends GetxService {
     return this;
   }
 
+  // এই মেথডটা আনলক করার পর কল হবে
   // এই মেথডটা আনলক করার পর কল হবে
   Future<void> checkForUpdate() async {
     try {
@@ -50,16 +52,34 @@ class UpdateService extends GetxService {
           _latestVersion!.trim() != _currentVersion!.trim()) {
         // ১. সিস্টেম নোটিফিকেশন পুশ করা
         sysNotification.showUpdateNotification(_latestVersion!, _forceUpdate);
+
         // ২. ডিরেক্ট ডায়ালগ শো করা
         showUpdateDialog();
+
+        // 🔥 ৩. ম্যাজিক: অ্যাপের ভেতরের নোটিফিকেশনেও Firebase এর ভার্সন পুশ করা
+        if (Get.isRegistered<NotificationController>()) {
+          final notifCtrl = Get.find<NotificationController>();
+
+          notifCtrl.removeUpdateNotification(); // আগের পুরনো আপডেট রিমুভ করবে
+
+          notifCtrl.addNotification(
+            title: 'New Update Available 🚀',
+            message:
+                'Version $_latestVersion is ready to install!', // Firebase theke asha exact version
+            icon: '🔄',
+            isPinned: _forceUpdate,
+            actionType: 'update',
+          );
+        }
       } else {
-        // অলরেডি লেটেস্ট ভার্সনে থাকলে নোটিফিকেশন ক্লিয়ার করে দিবে
+        // আপডেট না থাকলে বা লেটেস্ট ইন্সটল থাকলে সব নোটিফিকেশন গায়েব!
         sysNotification.cancelUpdateNotification();
+        if (Get.isRegistered<NotificationController>()) {
+          Get.find<NotificationController>().removeUpdateNotification();
+        }
       }
     } catch (e) {
-      debugPrint(
-        'Update Check Error: $e',
-      ); // ইন্টারনেট না থাকলে সাইলেন্টলি স্কিপ করবে
+      debugPrint('Update Check Error: $e');
     }
   }
 
