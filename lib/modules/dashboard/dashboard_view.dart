@@ -116,7 +116,7 @@ Widget _navItem({
         Icon(
           icon,
           size: 22,
-          color: isSelected ? AppColors.neonGreen : AppColors.textSecondary,
+          color: isSelected ? AppColors.expenseRed : AppColors.textSecondary,
         ),
         const SizedBox(height: 2),
         Text(
