@@ -10,7 +10,6 @@ android {
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
-    // Desugaring এর জন্য এই ব্লকটা খুব জরুরি
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
@@ -21,28 +20,32 @@ android {
         jvmTarget = "17"
     }
 
-    // দুইটা defaultConfig ছিল, একটা করে দিলাম
     defaultConfig {
         applicationId = "com.mrtechbd.mrexpense"
-        minSdk = flutter.minSdkVersion 
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
     }
 
-    // signingConfigs সবসময় buildTypes-এর উপরে রাখতে হয়!
-    // .kts ফাইলের জন্য '=' ব্যবহার করতে হয়
     signingConfigs {
+
+        // 🔥 RELEASE SIGNING (CI/CD + LOCAL BOTH SUPPORT)
         create("release") {
             storeFile = file("release-key.jks")
-            storePassword = "MDLM_MRTECH_BD_2024T_CHANGE_THISc0fbff1b519387015f2131c9cdaa3baafe048274aa370b7afd2a7b266854c00dcaeiubhgea**"
-            keyAlias = "my-key"
-            keyPassword = "MDLM_MRTECH_BD_2024T_CHANGE_THISc0fbff1b519387015f2131c9cdaa3baafe048274aa370b7afd2a7b266854c00dcaeiubhgea**"
+
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+                ?: "LOCAL_FALLBACK_PASSWORD_CHANGE_ME"
+
+            keyAlias = System.getenv("KEY_ALIAS")
+                ?: "my-key"
+
+            keyPassword = System.getenv("KEY_PASSWORD")
+                ?: "LOCAL_FALLBACK_PASSWORD_CHANGE_ME"
         }
     }
 
-    // দুইটা buildTypes ছিল, মার্জ করে দিলাম। .kts এর সঠিক সিনট্যাক্স দেওয়া হলো।
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
@@ -53,7 +56,6 @@ android {
 }
 
 dependencies {
-    // Desugaring লাইব্রেরি এখানে অ্যাড করা হলো
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
