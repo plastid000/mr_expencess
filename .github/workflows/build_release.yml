@@ -30,11 +30,19 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Debug Secrets
+        run: |
+          echo "KEY_ALIAS=$KEY_ALIAS"
+
       - name: Decode Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
 
       - name: Build APK (Release)
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: flutter build apk --release
 
       - name: Upload to GitHub Releases
