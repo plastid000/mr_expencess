@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mr_expense/core/services/app_lifecycle_service.dart';
 import 'package:mr_expense/modules/analytics/analytics_view.dart';
 import 'package:mr_expense/modules/notifications/notification_controller.dart';
 import 'package:mr_expense/modules/settings/settings_view.dart';
@@ -45,7 +46,7 @@ class DashboardView extends StatelessWidget {
             side: BorderSide(color: AppColors.neonGreen, width: 2),
           ),
           backgroundColor: Colors.transparent,
-          foregroundColor: AppColors.expenseRed,
+          foregroundColor: AppColors.neonGreen,
           elevation: 0,
           highlightElevation: 0,
           onPressed: () => _showQuickActionBottomSheet(),

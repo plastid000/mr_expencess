@@ -5,6 +5,7 @@
 import FlutterMacOS
 import Foundation
 
+import file_picker
 import firebase_core
 import firebase_remote_config
 import isar_flutter_libs
@@ -12,6 +13,7 @@ import local_auth_darwin
 import package_info_plus
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+  FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
   FLTFirebaseCorePlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseCorePlugin"))
   FirebaseRemoteConfigPlugin.register(with: registry.registrar(forPlugin: "FirebaseRemoteConfigPlugin"))
   IsarFlutterLibsPlugin.register(with: registry.registrar(forPlugin: "IsarFlutterLibsPlugin"))

@@ -15,15 +15,19 @@ class DatabaseService extends GetxService {
   Future<DatabaseService> init() async {
     final dir = await getApplicationDocumentsDirectory();
 
-    isar = await Isar.open([
-      TransactionModelSchema,
-      WalletModelSchema,
-      LoanModelSchema,
-      CategoryModelSchema,
-      IncomeSourceModelSchema,
-      UserSettingsModelSchema, // 🔥 স্কিমা লিস্টে অ্যাড করা হলো
-      NotificationModelSchema,
-    ], directory: dir.path);
+    isar = await Isar.open(
+      [
+        TransactionModelSchema,
+        WalletModelSchema,
+        LoanModelSchema,
+        CategoryModelSchema,
+        IncomeSourceModelSchema,
+        UserSettingsModelSchema, // 🔥 স্কিমা লিস্টে অ্যাড করা হলো
+        NotificationModelSchema,
+      ],
+      directory: dir.path,
+      inspector: false,
+    );
 
     // Initial Default Wallets
     if (await isar.walletModels.count() == 0) {
